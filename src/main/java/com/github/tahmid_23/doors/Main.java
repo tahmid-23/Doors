@@ -2,18 +2,24 @@ package com.github.tahmid_23.doors;
 
 import com.github.steanky.ethylene.codec.toml.TomlCodec;
 import com.github.steanky.ethylene.core.ConfigCodec;
+import com.github.steanky.ethylene.core.ConfigPrimitive;
 import com.github.steanky.ethylene.core.bridge.Configuration;
 import com.github.steanky.ethylene.core.processor.ConfigProcessor;
 import com.github.steanky.ethylene.mapper.MappingProcessorSource;
+import com.github.steanky.ethylene.mapper.signature.ScalarSignature;
 import com.github.steanky.ethylene.mapper.type.Token;
 import com.github.tahmid_23.doors.command.DoorsCommand;
 import com.github.tahmid_23.doors.config.ServerConfig;
+import com.github.tahmid_23.doors.game.DoorsGameCreator;
+import com.github.tahmid_23.doors.game.DoorsGameManager;
 import com.github.tahmid_23.doors.map.DoorsMap;
-import com.github.tahmid_23.doors.map.MapConfig;
+import com.github.tahmid_23.doors.map.config.MapConfig;
 import com.github.tahmid_23.doors.map.MapLoadException;
 import com.github.tahmid_23.doors.map.MapLoader;
-import com.github.tahmid_23.doors.map.generation.InstanceGenerator;
+import com.github.tahmid_23.doors.map.config.RoomConfig;
+import com.github.tahmid_23.doors.map.generation.RoomGenerator;
 import com.github.tahmid_23.doors.structure.StructureReader;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.command.CommandManager;
 import net.minestom.server.coordinate.Pos;
@@ -27,6 +33,7 @@ import net.minestom.server.extras.MojangAuth;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.InstanceManager;
 import net.minestom.server.instance.block.Block;
+import net.minestom.server.timer.TaskSchedule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,13 +53,16 @@ public class Main {
         Logger logger = LoggerFactory.getLogger("Doors");
         ConfigCodec codec = new TomlCodec();
         MappingProcessorSource processorSource = MappingProcessorSource.builder()
+                .withScalarSignature(ScalarSignature.of(Token.ofClass(Key.class), element -> Key.key(element.asString()),
+                        key -> key == null ? ConfigPrimitive.NULL : ConfigPrimitive.of(key.asString())))
                 .withStandardSignatures()
                 .withStandardTypeImplementations()
                 .build();
 
         StructureReader structureReader = new StructureReader();
         ConfigProcessor<MapConfig> mapConfigProcessor = processorSource.processorFor(Token.ofClass(MapConfig.class));
-        MapLoader mapLoader = new MapLoader(structureReader, codec, mapConfigProcessor);
+        ConfigProcessor<RoomConfig> roomConfigProcessor = processorSource.processorFor(Token.ofClass(RoomConfig.class));
+        MapLoader mapLoader = new MapLoader(structureReader, codec, mapConfigProcessor, roomConfigProcessor);
 
         Map<String, DoorsMap> maps = new HashMap<>();
         try (Stream<Path> mapDirectory = Files.list(Path.of("./maps/"))) {
@@ -70,25 +80,30 @@ public class Main {
         } catch (IOException e) {
             return;
         }
+        logger.info("Loaded {} maps", maps.size());
 
         InstanceManager instanceManager = MinecraftServer.getInstanceManager();
-
-        CommandManager commandManager = MinecraftServer.getCommandManager();
-        commandManager.register(DoorsCommand.createCommand(new InstanceGenerator(instanceManager, new Random()), maps));
+        EventNode<Event> globalNode = MinecraftServer.getGlobalEventHandler();
 
         Instance instance = instanceManager.createInstanceContainer();
         instance.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.STONE));
         instance.setTimeRate(0);
 
-        EventNode<Event> globalEventHandler = MinecraftServer.getGlobalEventHandler();
-        globalEventHandler.addListener(PlayerLoginEvent.class, event -> {
+        RoomGenerator generator = new RoomGenerator(new Random());
+        DoorsGameCreator gameCreator = new DoorsGameCreator(MinecraftServer.getConnectionManager(), generator);
+        DoorsGameManager gameManager = new DoorsGameManager(instanceManager, instance, gameCreator, globalNode);
+        CommandManager commandManager = MinecraftServer.getCommandManager();
+        commandManager.register(DoorsCommand.createCommand(gameManager, maps));
+
+        MinecraftServer.getSchedulerManager().scheduleTask(gameManager::tick, TaskSchedule.immediate(), TaskSchedule.tick(1));
+
+        globalNode.addListener(PlayerLoginEvent.class, event -> {
             Player player = event.getPlayer();
             event.setSpawningInstance(instance);
             player.setRespawnPoint(new Pos(0, 40, 0));
         });
-        globalEventHandler.addListener(PlayerSpawnEvent.class, event -> {
+        globalNode.addListener(PlayerSpawnEvent.class, event -> {
             event.getPlayer().setGameMode(GameMode.CREATIVE);
-            event.getPlayer().setFlying(true);
         });
 
         ConfigProcessor<ServerConfig> serverConfigProcessor = processorSource.processorFor(Token.ofClass(ServerConfig.class));

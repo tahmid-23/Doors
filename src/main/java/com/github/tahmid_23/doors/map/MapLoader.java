@@ -3,18 +3,20 @@ package com.github.tahmid_23.doors.map;
 import com.github.steanky.ethylene.core.ConfigCodec;
 import com.github.steanky.ethylene.core.bridge.Configuration;
 import com.github.steanky.ethylene.core.processor.ConfigProcessor;
+import com.github.tahmid_23.doors.map.config.MapConfig;
+import com.github.tahmid_23.doors.map.config.PoolType;
+import com.github.tahmid_23.doors.map.config.RoomConfig;
 import com.github.tahmid_23.doors.map.room.Exit;
 import com.github.tahmid_23.doors.map.room.RoomInfo;
-import com.github.tahmid_23.doors.map.room.RoomList;
+import com.github.tahmid_23.doors.map.room.RoomInfoContext;
 import com.github.tahmid_23.doors.map.room.RoomType;
 import com.github.tahmid_23.doors.structure.Structure;
 import com.github.tahmid_23.doors.structure.StructureFormatException;
 import com.github.tahmid_23.doors.structure.StructureReader;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.ints.IntList;
+import net.kyori.adventure.key.Key;
 import net.minestom.server.coordinate.Point;
-import net.minestom.server.coordinate.Vec;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
 import org.jglrxavpok.hephaistos.nbt.NBTCompound;
@@ -24,10 +26,7 @@ import org.jglrxavpok.hephaistos.nbt.NBTReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class MapLoader {
@@ -38,33 +37,50 @@ public class MapLoader {
 
     private final ConfigProcessor<MapConfig> mapConfigProcessor;
 
-    public MapLoader(StructureReader structureReader, ConfigCodec codec, ConfigProcessor<MapConfig> mapConfigProcessor) {
+    private final ConfigProcessor<RoomConfig> roomConfigProcessor;
+
+    public MapLoader(StructureReader structureReader, ConfigCodec codec, ConfigProcessor<MapConfig> mapConfigProcessor, ConfigProcessor<RoomConfig> roomConfigProcessor) {
         this.structureReader = structureReader;
         this.codec = codec;
         this.mapConfigProcessor = mapConfigProcessor;
+        this.roomConfigProcessor = roomConfigProcessor;
     }
 
     public DoorsMap loadMap(Path mapPath) throws MapLoadException {
         MapConfig mapConfig = loadMapConfig(mapPath);
 
-        List<RoomInfo> rooms = new ArrayList<>();
+        List<RoomInfo> randomRooms = new ArrayList<>();
+        Map<Key, RoomInfo> nameToRoom = new HashMap<>();
         Map<RoomType, IntList> indices = new EnumMap<>(RoomType.class);
-        try (Stream<Path> files = Files.list(mapPath.resolve("structures"))) {
-            int i = 0;
-            for (Path structurePath : (Iterable<? extends Path>) files::iterator) {
-                Structure structure = loadStructure(structurePath);
-                RoomInfo roomInfo = createRoomInfo(structure, mapConfig.paletteIndex());
+        try {
+            try (Stream<Path> files = Files.list(mapPath.resolve("rooms"))) {
+                int randomRoomCount = 0;
+                for (Path roomPath : (Iterable<? extends Path>) files::iterator) {
+                    RoomConfig roomConfig;
+                    try {
+                        roomConfig = Configuration.read(roomPath, codec, roomConfigProcessor);
+                    } catch (IOException e) {
+                        throw new MapLoadException("Failed to load room config in " + roomPath, e);
+                    }
 
-                rooms.add(roomInfo);
-                indices.computeIfAbsent(roomInfo.roomType(), type -> new IntArrayList()).add(i);
-                ++i;
+                    Path structurePath = mapPath.resolve("structures/" + roomConfig.roomKey().namespace() + "/" + roomConfig.roomKey().value() + ".nbt");
+                    Structure structure = loadStructure(structurePath);
+                    RoomInfo roomInfo = createRoomInfo(structure, mapConfig.paletteIndex());
+                    nameToRoom.put(roomConfig.roomKey(), roomInfo);
+
+                    if (roomConfig.poolType() == PoolType.RANDOM) {
+                        randomRooms.add(roomInfo);
+                        indices.computeIfAbsent(roomInfo.roomType(), type -> new IntArrayList()).add(randomRoomCount);
+                        ++randomRoomCount;
+                    }
+                }
             }
         } catch (IOException e) {
             throw new MapLoadException("Failed to list files in " + mapPath, e);
         }
 
-        RoomList roomList = new RoomList(rooms, indices);
-        return new DoorsMap(mapConfig, roomList);
+        RoomInfoContext roomInfoContext = new RoomInfoContext(randomRooms, nameToRoom, indices);
+        return new DoorsMap(mapConfig, roomInfoContext);
     }
 
     private MapConfig loadMapConfig(Path mapPath) throws MapLoadException {
