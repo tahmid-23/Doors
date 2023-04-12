@@ -1,11 +1,12 @@
 package com.github.tahmid_23.doors.map.generation;
 
-import com.github.tahmid_23.doors.block.DoorBlockHandler;
-import com.github.tahmid_23.doors.block.SignBlockHandler;
+import com.github.steanky.element.core.context.ContextManager;
+import com.github.steanky.ethylene.core.ConfigElement;
 import com.github.tahmid_23.doors.bounds.Bounds;
 import com.github.tahmid_23.doors.map.DoorsInstance;
 import com.github.tahmid_23.doors.map.DoorsMap;
 import com.github.tahmid_23.doors.map.config.RequiredRoom;
+import com.github.tahmid_23.doors.map.generation.transform.BlockTransform;
 import com.github.tahmid_23.doors.map.room.Exit;
 import com.github.tahmid_23.doors.map.room.Room;
 import com.github.tahmid_23.doors.map.room.RoomInfo;
@@ -20,10 +21,8 @@ import net.minestom.server.instance.batch.AbsoluteBlockBatch;
 import net.minestom.server.instance.batch.Batch;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.block.BlockFace;
-import net.minestom.server.instance.block.BlockHandler;
 import net.minestom.server.utils.chunk.ChunkUtils;
 import org.jglrxavpok.hephaistos.nbt.NBTCompound;
-import org.jglrxavpok.hephaistos.nbt.NBTString;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,18 +32,22 @@ import java.util.concurrent.CompletableFuture;
 
 public class RoomGenerator {
 
-    private static final BlockHandler DOOR_BLOCK_HANDLER = new DoorBlockHandler();
-
-    private static final BlockHandler SIGN_BLOCK_HANDLER = new SignBlockHandler();
+    private final ContextManager contextManager;
 
     private final Random random;
 
-    public RoomGenerator(Random random) {
+    public RoomGenerator(ContextManager contextManager, Random random) {
+        this.contextManager = contextManager;
         this.random = random;
     }
 
     public CompletableFuture<DoorsInstance> generate(DoorsMap map, Instance instance) {
         CompletableFuture<DoorsInstance> future = new CompletableFuture<>();
+
+        List<BlockTransform> blockTransforms = new ArrayList<>(map.mapConfig().transforms().elementCollection().size());
+        for (ConfigElement transformElement : map.mapConfig().transforms().elementCollection()) {
+            blockTransforms.add(contextManager.makeContext(transformElement.asContainer()).provide());
+        }
 
         Batch<Runnable> batch = new AbsoluteBlockBatch();
         LongSet chunkIndices = new LongArraySet();
@@ -102,41 +105,21 @@ public class RoomGenerator {
                     block = block.withNbt(nbt);
                 }
 
-                if (block.compare(Block.DISPENSER)) {
-                    Block lower = Block.OAK_DOOR.withProperties(Map.of(
-                            "facing", block.getProperty("facing"),
-                            "half", "lower"
-                    )).withHandler(DOOR_BLOCK_HANDLER);
-                    batch.setBlock(actualPos, lower);
-
-                    Block upper = Block.OAK_DOOR.withProperties(Map.of(
-                            "facing", block.getProperty("facing"),
-                            "half", "upper"
-                    )).withHandler(DOOR_BLOCK_HANDLER);
-                    batch.setBlock(actualPos.withY(actualPos.y() + 1), upper);
-                } else if (block.compare(Block.OAK_WALL_SIGN)) {
-                    NBTCompound textNBT = new NBTCompound(Map.of("Text1", new NBTString("{\"text\":\"" + (i + 1) + "\"}")));
-                    block = block.withHandler(SIGN_BLOCK_HANDLER).withNbt(textNBT);
-                }
-
                 String facingProperty = block.getProperty("facing");
                 if (facingProperty != null) {
                     block = block.withProperty("facing", adjustFacingProperty(facingProperty, currentFace, shouldInvert));
                 }
 
-                if (block.compare(Block.DISPENSER)) {
-                    Block lower = Block.OAK_DOOR.withProperties(Map.of(
-                            "facing", block.getProperty("facing"),
-                            "half", "lower"
-                    )).withHandler(DOOR_BLOCK_HANDLER);
-                    batch.setBlock(actualPos, lower);
+                boolean transformed = false;
+                for (BlockTransform transform : blockTransforms) {
+                    if (transform.isValidBlock(block)) {
+                        transform.transform(batch, block, actualPos, i);
+                        transformed = true;
+                        break;
+                    }
+                }
 
-                    Block upper = Block.OAK_DOOR.withProperties(Map.of(
-                            "facing", block.getProperty("facing"),
-                            "half", "upper"
-                    )).withHandler(DOOR_BLOCK_HANDLER);
-                    batch.setBlock(actualPos.withY(actualPos.y() + 1), upper);
-                } else if (!block.compare(Block.REDSTONE_BLOCK)) {
+                if (!transformed) {
                     batch.setBlock(actualPos, block);
                 }
             }

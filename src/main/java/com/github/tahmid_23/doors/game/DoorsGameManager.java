@@ -8,7 +8,10 @@ import net.minestom.server.event.EventNode;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.InstanceManager;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class DoorsGameManager {

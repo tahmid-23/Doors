@@ -1,5 +1,6 @@
 package com.github.tahmid_23.doors;
 
+import com.github.steanky.element.core.context.ContextManager;
 import com.github.steanky.ethylene.codec.toml.TomlCodec;
 import com.github.steanky.ethylene.core.ConfigCodec;
 import com.github.steanky.ethylene.core.ConfigPrimitive;
@@ -13,11 +14,14 @@ import com.github.tahmid_23.doors.config.ServerConfig;
 import com.github.tahmid_23.doors.game.DoorsGameCreator;
 import com.github.tahmid_23.doors.game.DoorsGameManager;
 import com.github.tahmid_23.doors.map.DoorsMap;
-import com.github.tahmid_23.doors.map.config.MapConfig;
 import com.github.tahmid_23.doors.map.MapLoadException;
 import com.github.tahmid_23.doors.map.MapLoader;
+import com.github.tahmid_23.doors.map.config.MapConfig;
 import com.github.tahmid_23.doors.map.config.RoomConfig;
 import com.github.tahmid_23.doors.map.generation.RoomGenerator;
+import com.github.tahmid_23.doors.map.generation.transform.DoorTransform;
+import com.github.tahmid_23.doors.map.generation.transform.RemoveTransform;
+import com.github.tahmid_23.doors.map.generation.transform.SignTransform;
 import com.github.tahmid_23.doors.structure.StructureReader;
 import net.kyori.adventure.key.Key;
 import net.minestom.server.MinecraftServer;
@@ -55,9 +59,17 @@ public class Main {
         MappingProcessorSource processorSource = MappingProcessorSource.builder()
                 .withScalarSignature(ScalarSignature.of(Token.ofClass(Key.class), element -> Key.key(element.asString()),
                         key -> key == null ? ConfigPrimitive.NULL : ConfigPrimitive.of(key.asString())))
+                .withScalarSignature(ScalarSignature.of(Token.ofClass(Block.class), element -> Block.fromNamespaceId(element.asString()),
+                        block -> block == null ? ConfigPrimitive.NULL : ConfigPrimitive.of(block.namespace().asString())))
                 .withStandardSignatures()
                 .withStandardTypeImplementations()
+                .ignoringLengths()
                 .build();
+
+        ContextManager contextManager = ContextManager.builder("doors").withMappingProcessorSourceSupplier(() -> processorSource).build();
+        contextManager.registerElementClass(DoorTransform.class);
+        contextManager.registerElementClass(RemoveTransform.class);
+        contextManager.registerElementClass(SignTransform.class);
 
         StructureReader structureReader = new StructureReader();
         ConfigProcessor<MapConfig> mapConfigProcessor = processorSource.processorFor(Token.ofClass(MapConfig.class));
@@ -89,7 +101,7 @@ public class Main {
         instance.setGenerator(unit -> unit.modifier().fillHeight(0, 40, Block.STONE));
         instance.setTimeRate(0);
 
-        RoomGenerator generator = new RoomGenerator(new Random());
+        RoomGenerator generator = new RoomGenerator(contextManager, new Random());
         DoorsGameCreator gameCreator = new DoorsGameCreator(MinecraftServer.getConnectionManager(), generator);
         DoorsGameManager gameManager = new DoorsGameManager(instanceManager, instance, gameCreator, globalNode);
         CommandManager commandManager = MinecraftServer.getCommandManager();

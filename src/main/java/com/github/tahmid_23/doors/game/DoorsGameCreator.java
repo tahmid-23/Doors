@@ -4,7 +4,6 @@ import com.github.tahmid_23.doors.map.DoorsMap;
 import com.github.tahmid_23.doors.map.generation.RoomGenerator;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
-import net.minestom.server.event.instance.RemoveEntityFromInstanceEvent;
 import net.minestom.server.event.player.PlayerDisconnectEvent;
 import net.minestom.server.event.player.PlayerSpawnEvent;
 import net.minestom.server.instance.Instance;

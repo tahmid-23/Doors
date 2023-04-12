@@ -1,6 +1,5 @@
 package com.github.tahmid_23.doors.structure;
 
-import com.github.tahmid_23.doors.bounds.Bounds;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.instance.block.Block;
