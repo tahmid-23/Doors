@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.generation.transform;
+package com.github.tahmid_23.doors.game.generation.transform;
 
 import com.github.steanky.element.core.annotation.DataObject;
 import com.github.steanky.element.core.annotation.FactoryMethod;
@@ -6,6 +6,7 @@ import com.github.steanky.element.core.annotation.Model;
 import com.github.tahmid_23.doors.block.SignBlockHandler;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.instance.block.Block;
+import net.minestom.server.instance.block.BlockFace;
 import net.minestom.server.instance.block.BlockHandler;
 import org.jglrxavpok.hephaistos.nbt.NBTCompound;
 import org.jglrxavpok.hephaistos.nbt.NBTString;
@@ -26,7 +27,7 @@ public class SignTransform implements BlockTransform {
     }
 
     @Override
-    public void transform(Block.Setter setter, Block block, Point location, int roomNumber) {
+    public void transform(Block.Setter setter, Block block, Point location, BlockFace currentFace, boolean shouldInvert, int roomNumber) {
         NBTCompound textNBT = new NBTCompound(Map.of("Text1", new NBTString("{\"text\":\"" + (roomNumber + 1) + "\"}")));
         setter.setBlock(location, block.withHandler(SIGN_BLOCK_HANDLER).withNbt(textNBT));
     }

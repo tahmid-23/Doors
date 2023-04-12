@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.config;
+package com.github.tahmid_23.doors.game.map.config;
 
 import net.kyori.adventure.key.Key;
 

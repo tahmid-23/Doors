@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.room;
+package com.github.tahmid_23.doors.game.map.room;
 
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.kyori.adventure.key.Key;

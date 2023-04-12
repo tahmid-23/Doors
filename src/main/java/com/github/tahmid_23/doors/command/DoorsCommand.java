@@ -1,7 +1,7 @@
 package com.github.tahmid_23.doors.command;
 
 import com.github.tahmid_23.doors.game.DoorsGameManager;
-import com.github.tahmid_23.doors.map.DoorsMap;
+import com.github.tahmid_23.doors.game.map.DoorsMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minestom.server.command.builder.Command;

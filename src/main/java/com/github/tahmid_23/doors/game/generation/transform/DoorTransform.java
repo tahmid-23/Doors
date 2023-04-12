@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.generation.transform;
+package com.github.tahmid_23.doors.game.generation.transform;
 
 import com.github.steanky.element.core.annotation.DataObject;
 import com.github.steanky.element.core.annotation.FactoryMethod;
@@ -6,6 +6,7 @@ import com.github.steanky.element.core.annotation.Model;
 import com.github.tahmid_23.doors.block.DoorBlockHandler;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.instance.block.Block;
+import net.minestom.server.instance.block.BlockFace;
 import net.minestom.server.instance.block.BlockHandler;
 
 import java.util.Map;
@@ -26,7 +27,7 @@ public class DoorTransform implements BlockTransform {
     }
 
     @Override
-    public void transform(Block.Setter setter, Block block, Point location, int roomNumber) {
+    public void transform(Block.Setter setter, Block block, Point location, BlockFace currentFace, boolean shouldInvert, int roomNumber) {
         Block lower = doorBlock.withProperties(Map.of(
                 "facing", block.getProperty("facing"),
                 "half", "lower"

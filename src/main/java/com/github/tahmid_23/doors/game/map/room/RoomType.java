@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.room;
+package com.github.tahmid_23.doors.game.map.room;
 
 public enum RoomType {
     HALLWAY,

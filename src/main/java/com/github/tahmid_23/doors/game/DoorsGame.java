@@ -1,22 +1,29 @@
 package com.github.tahmid_23.doors.game;
 
-import com.github.tahmid_23.doors.map.DoorsInstance;
-import com.github.tahmid_23.doors.map.room.Room;
+import com.github.tahmid_23.doors.game.map.DoorsInstance;
+import com.github.tahmid_23.doors.game.map.room.Room;
+import com.github.tahmid_23.doors.game.object.closet.HidingSpotManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.minestom.server.coordinate.Vec;
+import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.ConnectionManager;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 public class DoorsGame {
 
     private final ConnectionManager connectionManager;
 
+    private final Set<UUID> players;
+
     private final DoorsInstance doorsInstance;
 
-    private final Set<UUID> players = new HashSet<>();
+    private final HidingSpotManager hidingSpotManager;
 
     private long currentTick = 0;
 
@@ -24,14 +31,20 @@ public class DoorsGame {
 
     private boolean started = false;
 
-    public DoorsGame(ConnectionManager connectionManager, DoorsInstance doorsInstance) {
+    public DoorsGame(ConnectionManager connectionManager, Set<UUID> players, DoorsInstance doorsInstance, HidingSpotManager hidingSpotManager) {
         this.connectionManager = connectionManager;
+        this.players = players;
         this.doorsInstance = doorsInstance;
+        this.hidingSpotManager = hidingSpotManager;
     }
 
     public void addPlayer(Player player) {
         players.add(player.getUuid());
-        player.setInstance(doorsInstance.instance(), Vec.ZERO);
+        player.setInstance(doorsInstance.instance(), Vec.ZERO).thenRun(() -> {
+            player.setGameMode(GameMode.CREATIVE);
+            player.setFood(6);
+        });
+
         started = true;
     }
 
@@ -45,6 +58,7 @@ public class DoorsGame {
 
     public void tick() {
         ++currentTick;
+        hidingSpotManager.tick();
         if (winTick != -1) {
             return;
         }

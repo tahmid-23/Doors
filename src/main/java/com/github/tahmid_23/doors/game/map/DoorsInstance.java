@@ -1,6 +1,6 @@
-package com.github.tahmid_23.doors.map;
+package com.github.tahmid_23.doors.game.map;
 
-import com.github.tahmid_23.doors.map.room.Room;
+import com.github.tahmid_23.doors.game.map.room.Room;
 import net.minestom.server.instance.Instance;
 
 import java.util.List;

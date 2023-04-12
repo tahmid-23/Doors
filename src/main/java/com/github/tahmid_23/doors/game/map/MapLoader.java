@@ -1,15 +1,15 @@
-package com.github.tahmid_23.doors.map;
+package com.github.tahmid_23.doors.game.map;
 
 import com.github.steanky.ethylene.core.ConfigCodec;
 import com.github.steanky.ethylene.core.bridge.Configuration;
 import com.github.steanky.ethylene.core.processor.ConfigProcessor;
-import com.github.tahmid_23.doors.map.config.MapConfig;
-import com.github.tahmid_23.doors.map.config.PoolType;
-import com.github.tahmid_23.doors.map.config.RoomConfig;
-import com.github.tahmid_23.doors.map.room.Exit;
-import com.github.tahmid_23.doors.map.room.RoomInfo;
-import com.github.tahmid_23.doors.map.room.RoomInfoContext;
-import com.github.tahmid_23.doors.map.room.RoomType;
+import com.github.tahmid_23.doors.game.map.config.MapConfig;
+import com.github.tahmid_23.doors.game.map.config.PoolType;
+import com.github.tahmid_23.doors.game.map.config.RoomConfig;
+import com.github.tahmid_23.doors.game.map.room.Exit;
+import com.github.tahmid_23.doors.game.map.room.RoomInfo;
+import com.github.tahmid_23.doors.game.map.room.RoomInfoContext;
+import com.github.tahmid_23.doors.game.map.room.RoomType;
 import com.github.tahmid_23.doors.structure.Structure;
 import com.github.tahmid_23.doors.structure.StructureFormatException;
 import com.github.tahmid_23.doors.structure.StructureReader;
@@ -79,8 +79,15 @@ public class MapLoader {
             throw new MapLoadException("Failed to list files in " + mapPath, e);
         }
 
+        Map<Key, Structure> extraStructures = new HashMap<>(mapConfig.extraStructures().size());
+        for (Key structureKey : mapConfig.extraStructures()) {
+            Path structurePath = mapPath.resolve("structures/" + structureKey.namespace() + "/" + structureKey.value() + ".nbt");
+            Structure structure = loadStructure(structurePath);
+            extraStructures.put(structureKey, structure);
+        }
+
         RoomInfoContext roomInfoContext = new RoomInfoContext(randomRooms, nameToRoom, indices);
-        return new DoorsMap(mapConfig, roomInfoContext);
+        return new DoorsMap(mapConfig, roomInfoContext, extraStructures);
     }
 
     private MapConfig loadMapConfig(Path mapPath) throws MapLoadException {

@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.map.room;
+package com.github.tahmid_23.doors.game.map.room;
 
 import com.github.tahmid_23.doors.structure.Structure;
 import net.minestom.server.coordinate.Point;

@@ -1,6 +1,6 @@
 package com.github.tahmid_23.doors.game;
 
-import com.github.tahmid_23.doors.map.DoorsMap;
+import com.github.tahmid_23.doors.game.map.DoorsMap;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;

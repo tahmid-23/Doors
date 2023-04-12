@@ -1,21 +1,29 @@
-package com.github.tahmid_23.doors.map.generation;
+package com.github.tahmid_23.doors.game.generation;
 
+import com.github.steanky.element.core.annotation.Depend;
 import com.github.steanky.element.core.context.ContextManager;
+import com.github.steanky.element.core.dependency.DependencyModule;
+import com.github.steanky.element.core.dependency.DependencyProvider;
+import com.github.steanky.element.core.dependency.ModuleDependencyProvider;
+import com.github.steanky.element.core.key.KeyParser;
 import com.github.steanky.ethylene.core.ConfigElement;
 import com.github.tahmid_23.doors.bounds.Bounds;
-import com.github.tahmid_23.doors.map.DoorsInstance;
-import com.github.tahmid_23.doors.map.DoorsMap;
-import com.github.tahmid_23.doors.map.config.RequiredRoom;
-import com.github.tahmid_23.doors.map.generation.transform.BlockTransform;
-import com.github.tahmid_23.doors.map.room.Exit;
-import com.github.tahmid_23.doors.map.room.Room;
-import com.github.tahmid_23.doors.map.room.RoomInfo;
-import com.github.tahmid_23.doors.map.room.RoomType;
+import com.github.tahmid_23.doors.game.generation.transform.BlockTransform;
+import com.github.tahmid_23.doors.game.map.DoorsInstance;
+import com.github.tahmid_23.doors.game.map.DoorsMap;
+import com.github.tahmid_23.doors.game.map.config.RequiredRoom;
+import com.github.tahmid_23.doors.game.map.room.Exit;
+import com.github.tahmid_23.doors.game.map.room.Room;
+import com.github.tahmid_23.doors.game.map.room.RoomInfo;
+import com.github.tahmid_23.doors.game.map.room.RoomType;
+import com.github.tahmid_23.doors.game.object.closet.HidingSpotManager;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.longs.LongArraySet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
+import net.minestom.server.event.Event;
+import net.minestom.server.event.EventNode;
 import net.minestom.server.instance.Instance;
 import net.minestom.server.instance.batch.AbsoluteBlockBatch;
 import net.minestom.server.instance.batch.Batch;
@@ -34,19 +42,23 @@ public class RoomGenerator {
 
     private final ContextManager contextManager;
 
+    private final KeyParser keyParser;
+
     private final Random random;
 
-    public RoomGenerator(ContextManager contextManager, Random random) {
+    public RoomGenerator(ContextManager contextManager, KeyParser keyParser, Random random) {
         this.contextManager = contextManager;
+        this.keyParser = keyParser;
         this.random = random;
     }
 
-    public CompletableFuture<DoorsInstance> generate(DoorsMap map, Instance instance) {
+    public CompletableFuture<DoorsInstance> generate(DoorsMap map, HidingSpotManager hidingSpotManager, Instance instance, EventNode<Event> gameNode) {
         CompletableFuture<DoorsInstance> future = new CompletableFuture<>();
 
+        DependencyProvider dependencyProvider = new ModuleDependencyProvider(keyParser, new Module(map, hidingSpotManager, instance, gameNode));
         List<BlockTransform> blockTransforms = new ArrayList<>(map.mapConfig().transforms().elementCollection().size());
         for (ConfigElement transformElement : map.mapConfig().transforms().elementCollection()) {
-            blockTransforms.add(contextManager.makeContext(transformElement.asContainer()).provide());
+            blockTransforms.add(contextManager.makeContext(transformElement.asContainer()).provide(dependencyProvider));
         }
 
         Batch<Runnable> batch = new AbsoluteBlockBatch();
@@ -91,12 +103,12 @@ public class RoomGenerator {
             NBTCompound[] blockEntityNBT = roomInfo.structure().blockEntityNBT();
             for (int j = 0; j < blockStates.length; ++j) {
                 Block block = palette[blockStates[j]];
-                if (block.compare(Block.STRUCTURE_VOID)) {
+                if (block.compare(Block.STRUCTURE_VOID) || block.compare(Block.AIR)) {
                     continue;
                 }
 
                 Point delta = blockPositions[j].sub(roomInfo.entrance());
-                delta = adjustPoint(delta, currentFace, shouldInvert);
+                delta = BlockAdjustment.adjustPoint(delta, currentFace, shouldInvert);
                 Point actualPos = alignmentPos.add(delta);
                 chunkIndices.add(ChunkUtils.getChunkIndex(actualPos));
 
@@ -107,13 +119,19 @@ public class RoomGenerator {
 
                 String facingProperty = block.getProperty("facing");
                 if (facingProperty != null) {
-                    block = block.withProperty("facing", adjustFacingProperty(facingProperty, currentFace, shouldInvert));
+                    block = block.withProperty("facing", BlockAdjustment.adjustFacingProperty(facingProperty, currentFace, shouldInvert));
+                }
+                if (shouldInvert) {
+                    String hingeProperty = block.getProperty("hinge");
+                    if (hingeProperty != null) {
+                        block = block.withProperty("hinge", hingeProperty.equals("left") ? "right" : "left");
+                    }
                 }
 
                 boolean transformed = false;
                 for (BlockTransform transform : blockTransforms) {
                     if (transform.isValidBlock(block)) {
-                        transform.transform(batch, block, actualPos, i);
+                        transform.transform(batch, block, actualPos, currentFace, shouldInvert, i);
                         transformed = true;
                         break;
                     }
@@ -128,15 +146,18 @@ public class RoomGenerator {
             if (shouldInvert) {
                 switch (currentFace) {
                     case NORTH -> origin = origin.withZ(roomInfo.structure().length() - roomInfo.entrance().z() - 1);
-                    case WEST -> origin = new Vec(-(roomInfo.structure().length() - roomInfo.entrance().z() - 1), origin.y(), -(roomInfo.structure().width() - roomInfo.entrance().x() - 1));
+                    case WEST ->
+                            origin = new Vec(-(roomInfo.structure().length() - roomInfo.entrance().z() - 1), origin.y(), -(roomInfo.structure().width() - roomInfo.entrance().x() - 1));
                     case EAST -> origin = new Vec(origin.z(), origin.y(), -roomInfo.entrance().x());
                 }
 
             } else {
                 switch (currentFace) {
                     case NORTH -> origin = origin.withZ(roomInfo.structure().length() - roomInfo.entrance().z() - 1);
-                    case WEST -> origin = new Vec(-(roomInfo.structure().length() - roomInfo.entrance().z() - 1), origin.y(), origin.x());
-                    case EAST -> origin = new Vec(origin.z(), origin.y(), -(roomInfo.structure().width() - roomInfo.entrance().x() - 1));
+                    case WEST ->
+                            origin = new Vec(-(roomInfo.structure().length() - roomInfo.entrance().z() - 1), origin.y(), origin.x());
+                    case EAST ->
+                            origin = new Vec(origin.z(), origin.y(), -(roomInfo.structure().width() - roomInfo.entrance().x() - 1));
                 }
             }
 
@@ -158,10 +179,10 @@ public class RoomGenerator {
             int exitIndex = random.nextInt(roomInfo.exits().size());
             Exit exit = roomInfo.exits().get(exitIndex);
             Point exitDelta = exit.location().sub(roomInfo.entrance());
-            exitDelta = adjustPoint(exitDelta, currentFace, shouldInvert);
+            exitDelta = BlockAdjustment.adjustPoint(exitDelta, currentFace, shouldInvert);
 
             currentPos = alignmentPos.add(exitDelta);
-            currentFace = adjustFace(exit.face(), currentFace, shouldInvert);
+            currentFace = BlockAdjustment.adjustFace(exit.face(), currentFace, shouldInvert);
         }
 
         ChunkUtils.optionalLoadAll(instance, chunkIndices.toLongArray(), null).thenRun(() -> batch.apply(instance, () -> {
@@ -206,139 +227,39 @@ public class RoomGenerator {
         }
     }
 
-    private Point adjustPoint(Point point, BlockFace newOrientation, boolean shouldInvert) {
-        double x = shouldInvert ? -point.x() : point.x(), y = point.y(), z = point.z();
+    @Depend
+    public static class Module implements DependencyModule {
 
-        switch (newOrientation) {
-            case NORTH -> {
-                return new Vec(-x, y, -z);
-            }
-            case SOUTH -> {
-                return new Vec(x, y, z);
-            }
-            case WEST -> {
-                return new Vec(-z, y, x);
-            }
-            case EAST -> {
-                return new Vec(z, y, -x);
-            }
+        private final DoorsMap map;
+
+        private final HidingSpotManager hidingSpotManager;
+
+        private final Instance instance;
+
+        private final EventNode<Event> gameNode;
+
+        public Module(DoorsMap map, HidingSpotManager hidingSpotManager, Instance instance, EventNode<Event> gameNode) {
+            this.map = map;
+            this.hidingSpotManager = hidingSpotManager;
+            this.instance = instance;
+            this.gameNode = gameNode;
         }
 
-        return null;
-    }
-
-    private BlockFace adjustFace(BlockFace previousFace, BlockFace newOrientation, boolean shouldInvert) {
-        if (shouldInvert && (previousFace == BlockFace.WEST || previousFace == BlockFace.EAST)) {
-            previousFace = previousFace.getOppositeFace();
+        public DoorsMap getMap() {
+            return map;
         }
 
-        switch (previousFace) {
-            case SOUTH -> {
-                return newOrientation;
-            }
-            case NORTH -> {
-                return newOrientation.getOppositeFace();
-            }
-            case WEST -> {
-                switch (newOrientation) {
-                    case SOUTH -> {
-                        return BlockFace.WEST;
-                    }
-                    case NORTH -> {
-                        return BlockFace.EAST;
-                    }
-                    case WEST -> {
-                        return BlockFace.NORTH;
-                    }
-                    case EAST -> {
-                        return BlockFace.SOUTH;
-                    }
-                }
-            }
-            case EAST -> {
-                switch (newOrientation) {
-                    case SOUTH -> {
-                        return BlockFace.EAST;
-                    }
-                    case NORTH -> {
-                        return BlockFace.WEST;
-                    }
-                    case WEST -> {
-                        return BlockFace.SOUTH;
-                    }
-                    case EAST -> {
-                        return BlockFace.NORTH;
-                    }
-                }
-            }
+        public HidingSpotManager getClosetManager() {
+            return hidingSpotManager;
         }
 
-        return null;
-    }
-
-    private String adjustFacingProperty(String facingProperty, BlockFace newOrientation, boolean shouldInvert) {
-        if (shouldInvert) {
-            facingProperty = switch (facingProperty) {
-                case "west" -> "east";
-                case "east" -> "west";
-                default -> facingProperty;
-            };
-        }
-        switch (newOrientation) {
-            case SOUTH -> {
-                return facingProperty;
-            }
-            case NORTH -> {
-                switch (facingProperty) {
-                    case "north" -> {
-                        return "south";
-                    }
-                    case "south" -> {
-                        return "north";
-                    }
-                    case "west" -> {
-                        return "east";
-                    }
-                    case "east" -> {
-                        return "west";
-                    }
-                }
-            }
-            case WEST -> {
-                switch (facingProperty) {
-                    case "north" -> {
-                        return "east";
-                    }
-                    case "south" -> {
-                        return "west";
-                    }
-                    case "west" -> {
-                        return "north";
-                    }
-                    case "east" -> {
-                        return "south";
-                    }
-                }
-            }
-            case EAST -> {
-                switch (facingProperty) {
-                    case "north" -> {
-                        return "west";
-                    }
-                    case "south" -> {
-                        return "east";
-                    }
-                    case "west" -> {
-                        return "south";
-                    }
-                    case "east" -> {
-                        return "north";
-                    }
-                }
-            }
+        public Instance getInstance() {
+            return instance;
         }
 
-        return null;
+        public EventNode<Event> getGameNode() {
+            return gameNode;
+        }
     }
 
 }
