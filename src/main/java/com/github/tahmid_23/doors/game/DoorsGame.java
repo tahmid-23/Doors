@@ -10,10 +10,7 @@ import net.minestom.server.entity.GameMode;
 import net.minestom.server.entity.Player;
 import net.minestom.server.network.ConnectionManager;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class DoorsGame {
 
@@ -23,7 +20,7 @@ public class DoorsGame {
 
     private final DoorsInstance doorsInstance;
 
-    private final HidingSpotManager hidingSpotManager;
+    private final Collection<Tickable> tickables;
 
     private long currentTick = 0;
 
@@ -31,11 +28,11 @@ public class DoorsGame {
 
     private boolean started = false;
 
-    public DoorsGame(ConnectionManager connectionManager, Set<UUID> players, DoorsInstance doorsInstance, HidingSpotManager hidingSpotManager) {
+    public DoorsGame(ConnectionManager connectionManager, Set<UUID> players, DoorsInstance doorsInstance, Collection<Tickable> tickables) {
         this.connectionManager = connectionManager;
         this.players = players;
         this.doorsInstance = doorsInstance;
-        this.hidingSpotManager = hidingSpotManager;
+        this.tickables = tickables;
     }
 
     public void addPlayer(Player player) {
@@ -58,7 +55,9 @@ public class DoorsGame {
 
     public void tick() {
         ++currentTick;
-        hidingSpotManager.tick();
+        for (Tickable tickable : tickables) {
+            tickable.tick();
+        }
         if (winTick != -1) {
             return;
         }

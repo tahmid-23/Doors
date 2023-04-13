@@ -139,7 +139,7 @@ public class ClosetTransform implements BlockTransform {
         gameNode.addListener(DoorsPlayerLeaveEvent.class, closet::onPlayerLeave);
         gameNode.addListener(DoorsPlayerInteractEntityEvent.class, closet::onInteract);
         gameNode.addListener(DoorsPlayerSneakEvent.class, closet::onPlayerSneak);
-        hidingSpotManager.addCloset(closet);
+        hidingSpotManager.addHidingSpot(closet);
     }
 
     @Override

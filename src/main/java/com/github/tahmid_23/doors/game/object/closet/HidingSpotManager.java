@@ -1,5 +1,6 @@
 package com.github.tahmid_23.doors.game.object.closet;
 
+import com.github.tahmid_23.doors.game.Tickable;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentLike;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -8,7 +9,7 @@ import net.minestom.server.network.ConnectionManager;
 
 import java.util.*;
 
-public class HidingSpotManager {
+public class HidingSpotManager implements Tickable {
 
     private final Collection<HidingSpot> hidingSpots = new ArrayList<>();
 
@@ -24,10 +25,15 @@ public class HidingSpotManager {
         this.rangeSquared = rangeSquared;
     }
 
-    public void addCloset(HidingSpot hidingSpot) {
+    public void addHidingSpot(HidingSpot hidingSpot) {
         hidingSpots.add(hidingSpot);
     }
 
+    public Collection<HidingSpot> getHidingSpots() {
+        return hidingSpots;
+    }
+
+    @Override
     public void tick() {
         for (HidingSpot hidingSpot : hidingSpots) {
             hidingSpot.tick();

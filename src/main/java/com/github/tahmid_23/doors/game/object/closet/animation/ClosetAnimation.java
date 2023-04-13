@@ -73,17 +73,27 @@ public class ClosetAnimation {
 
     private void resetState() {
         if (hider != null) {
-            hider.setInvisible(false);
-            hider.stopSpectating();
-            hider = null;
+            resetHider();
         }
         if (camera != null) {
-            camera.remove();
-            camera = null;
+            resetCamera();
         }
+
         currentTick = 0L;
         hiding = false;
         inProgress = false;
+    }
+
+    private void resetHider() {
+        hider.teleport(start.withView(reverseYaw, 0.0F));
+        hider.setInvisible(false);
+        hider.stopSpectating();
+        hider = null;
+    }
+
+    private void resetCamera() {
+        camera.remove();
+        camera = null;
     }
 
     public void tick() {
@@ -117,13 +127,8 @@ public class ClosetAnimation {
                 camera.teleport(pos);
             }
             if (currentTick == 10L) {
-                hider.teleport(start.withView(reverseYaw, 0.0F));
-                hider.setInvisible(false);
-                hider.stopSpectating();
-                hider = null;
-
-                camera.remove();
-                camera = null;
+                resetHider();
+                resetCamera();
             }
             if (currentTick == 20L) {
                 resetState();

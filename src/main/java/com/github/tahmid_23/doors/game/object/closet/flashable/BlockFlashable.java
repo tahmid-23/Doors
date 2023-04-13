@@ -1,4 +1,4 @@
-package com.github.tahmid_23.doors.game;
+package com.github.tahmid_23.doors.game.object.closet.flashable;
 
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.instance.block.Block;
